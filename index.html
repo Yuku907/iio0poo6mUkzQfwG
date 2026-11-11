@@ -114,7 +114,7 @@
         <p class="muted small" style="line-height:1.7;margin:0 0 1rem">このページは合言葉で保護されています。合言葉を入力してください。</p>
         <form id="gateForm">
           <label class="flabel" for="gateInput">合言葉</label>
-          <input type="password" id="gateInput" autocomplete="off" placeholder="合言葉を入力" />
+          <input type="text" id="gateInput" lang="ja" inputmode="text" enterkeyhint="go" autocomplete="off" autocapitalize="none" placeholder="合言葉を入力" style="font-size:1rem" />
           <p id="gateError" role="alert"></p>
           <button type="submit" class="btn btn-accent" style="width:100%;margin-top:.5rem">開く</button>
         </form>
@@ -878,11 +878,23 @@ function unlock(){
   document.getElementById("app").classList.remove("hidden");
   renderAll();
 }
+/* 日本語入力（IME変換）中は判定しない。変換の確定キーでフォーム送信が走っても、
+   未確定の文字列で照合したり入力を消したりしないためのガード。 */
+let gateComposing=false;
+const gateInputEl=document.getElementById("gateInput");
+gateInputEl.addEventListener("compositionstart", ()=>{ gateComposing=true; });
+gateInputEl.addEventListener("compositionend", ()=>{ gateComposing=false; });
+gateInputEl.addEventListener("keydown", (e)=>{
+  if((e.isComposing || gateComposing || e.keyCode===229) && (e.key==="Enter" || e.keyCode===13)){ e.preventDefault(); }
+});
 document.getElementById("gateForm").addEventListener("submit", (e)=>{
   e.preventDefault();
-  const v=document.getElementById("gateInput").value.trim();
+  if(gateComposing) return;
+  /* 判定は送信時の確定済みの値だけを使う。入力中の加工はしない。
+     NFKC正規化で全角数字（０６６８など）を半角に寄せ、前後の空白を取り除く。 */
+  const v=gateInputEl.value.normalize("NFKC").replace(/\s+/g,"").trim();
   if(v===PASSCODE){ try{ sessionStorage.setItem("denkiPubGate","1"); }catch(err){} unlock(); }
-  else { document.getElementById("gateError").textContent="合言葉が違います。もう一度入力してください。"; document.getElementById("gateInput").value=""; document.getElementById("gateInput").focus(); }
+  else { document.getElementById("gateError").textContent="合言葉が違います。もう一度入力してください。"; gateInputEl.focus(); gateInputEl.select(); }
 });
 let gateOk=false;
 try{ gateOk = sessionStorage.getItem("denkiPubGate")==="1"; }catch(err){}
